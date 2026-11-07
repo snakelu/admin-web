@@ -1,0 +1,67 @@
+# admin-web 部署参考（nginx）
+#
+# 线上现状：nginx 已部署并配置了 /ai-writer/ 反向代理 ai-writer 后端 API
+#（小程序与看板共用的接口前缀）。前端只需要在【现有 server 块】里补两段静态配置。
+
+
+# ── 一、并入现有 server（必做，就这两段）──────────────────────
+#
+#    在已有的 443 server 块里加：
+#
+#    # 静态根目录：admin-web npm run build 产出的 dist/
+#    root /var/www/admin-web/dist;
+#
+#    # SPA 路由回落：/model、/users 等路径由 react-router 接管
+#    location / {
+#        try_files $uri $uri/ /index.html;
+#    }
+#
+#    注意：若现有配置里已有 location /，把 try_files 合并进去即可；
+#    /ai-writer/ 的反代保持原样，不要动。
+
+
+# ── 二、完整 server 参考（仅新建站点时使用）────────────────────
+#
+# server {
+#     listen 443 ssl;
+#     server_name agelong.xyz;
+#
+#     # 证书按实际情况配置
+#     # ssl_certificate     /etc/nginx/certs/agelong.xyz.pem;
+#     # ssl_certificate_key /etc/nginx/certs/agelong.xyz.key;
+#
+#     # 看板前端静态文件（admin-web 的 npm run build 产物）
+#     root /var/www/admin-web/dist;
+#     index index.html;
+#
+#     # gzip 压缩（前端产物为 js/css/html）
+#     gzip on;
+#     gzip_types text/css application/javascript application/json image/svg+xml;
+#
+#     # SPA 路由回落
+#     location / {
+#         try_files $uri $uri/ /index.html;
+#     }
+#
+#     # 静态资源带内容 hash，可长缓存
+#     location /assets/ {
+#         expires 30d;
+#         add_header Cache-Control "public, immutable";
+#     }
+#
+#     # 后端 API（线上已配置，此处仅作参考）：
+#     # /ai-writer/xyz -> http://127.0.0.1:8080/xyz（末尾斜杠剥掉前缀）
+#     location /ai-writer/ {
+#         proxy_pass http://127.0.0.1:8080/;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#     }
+# }
+#
+# server {
+#     listen 80;
+#     server_name agelong.xyz;
+#     return 301 https://$host$request_uri;
+# }
