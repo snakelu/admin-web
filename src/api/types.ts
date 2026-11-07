@@ -42,6 +42,7 @@ export interface UserDay {
   date: string;
   new_users: number;
   assignments: number;
+  english_writing: number;
   turns: number;
   guidance: number;
   review: number;
@@ -55,6 +56,7 @@ export interface UserStatsSnapshot {
     total: number;
     writing: number;
     reading: number;
+    english_writing: number;
     today: number;
     last7days: number;
   };
@@ -66,8 +68,10 @@ export interface UserStatsSnapshot {
     review: number;
     writing_guidance: number;
     reading_guidance: number;
+    english_writing_guidance: number;
     writing_review: number;
     reading_review: number;
+    english_writing_review: number;
     succeeded: number;
     needs_input: number;
     failed: number;

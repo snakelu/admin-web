@@ -34,19 +34,25 @@ export function UserPage({ data }: { data: UserStatsSnapshot | null }) {
           {
             label: "作业总数",
             value: dash(assignments.total),
-            foot: `作文 ${dash(assignments.writing)} · 阅读 ${dash(assignments.reading)}`,
+            foot: `作文 ${dash(assignments.writing)} · 阅读 ${dash(assignments.reading)} · 英语 ${dash(
+              assignments.english_writing,
+            )}`,
             badge: `今日 ${dash(assignments.today)} 份`,
             tone: "pill-accent",
           },
           {
             label: "导学请求",
             value: dash(turns.guidance),
-            foot: `作文 ${dash(turns.writing_guidance)} · 阅读 ${dash(turns.reading_guidance)}`,
+            foot: `作文 ${dash(turns.writing_guidance)} · 阅读 ${dash(turns.reading_guidance)} · 英语 ${dash(
+              turns.english_writing_guidance,
+            )}`,
           },
           {
             label: "点评请求",
             value: dash(turns.review),
-            foot: `作文 ${dash(turns.writing_review)} · 阅读 ${dash(turns.reading_review)}`,
+            foot: `作文 ${dash(turns.writing_review)} · 阅读 ${dash(turns.reading_review)} · 英语 ${dash(
+              turns.english_writing_review,
+            )}`,
           },
           {
             label: "今日活跃",
@@ -131,6 +137,7 @@ export function UserPage({ data }: { data: UserStatsSnapshot | null }) {
                   <th className="lead">日期</th>
                   <th>新增注册</th>
                   <th>作业</th>
+                  <th>英语</th>
                   <th>轮次</th>
                   <th>导学</th>
                   <th>点评</th>
@@ -143,6 +150,7 @@ export function UserPage({ data }: { data: UserStatsSnapshot | null }) {
                     <td className="lead">{day.date}</td>
                     <td>{dash(day.new_users)}</td>
                     <td>{dash(day.assignments)}</td>
+                    <td>{dash(day.english_writing)}</td>
                     <td>{dash(day.turns)}</td>
                     <td>{dash(day.guidance)}</td>
                     <td>{dash(day.review)}</td>
@@ -151,7 +159,7 @@ export function UserPage({ data }: { data: UserStatsSnapshot | null }) {
                 ))}
                 {!days.length && (
                   <tr>
-                    <td className="text-muted" colSpan={7}>
+                    <td className="text-muted" colSpan={8}>
                       暂无每日记录
                     </td>
                   </tr>
