@@ -17,9 +17,13 @@ function UserRoute() {
   return <UserPage data={user.data} />;
 }
 
+// 部署在子路径（如 https://agelong.xyz/admin/）时，Vite 的 BASE_URL 为该前缀；
+// 开发环境为 "/"。去掉尾斜杠作为 basename。
+const routerBasename = import.meta.env.BASE_URL.replace(/\/+$/, "") || "/";
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename}>
       <Routes>
         <Route element={<App />}>
           <Route index element={<Navigate to="/model" replace />} />

@@ -35,27 +35,46 @@ npm run preview    # 本地冒烟验证生产构建（/api 与 /ai-writer 均代
 
 | 环境 | 值 | 行为 |
 | --- | --- | --- |
-| 开发 | 空（`.env.development`） | 同源请求 `/api/...`，vite 代理到本地后端 |
+| 开发 | 空（`.env.development`） | 同源请求 `/api/...`，vite 代理到本地后端；页面在根路径 `/` |
 | 线上同源部署 | `/ai-writer`（`.env.production` 默认值） | 请求 `https://<域名>/ai-writer/api/v1/...`，由 nginx 反代到后端 |
 | 跨域部署 | 完整地址，如 `https://agelong.xyz/ai-writer` | 需在后端 `CORS_ORIGINS` 放行看板域名 |
 
 构建时覆盖：`VITE_API_BASE_URL=/ai-writer npm run build`。
 
+另有 `VITE_BASE` 控制前端挂载路径（默认 `/admin/`，开发环境为 `/`）：Vite 以它作为资源引用前缀，react-router 以它作为 basename。改部署路径时同步修改 nginx 的对应 location。
+
 ## 部署（并入现有 nginx）
 
-线上 nginx 已经就绪并反向代理了 ai-writer 后端 API（`/ai-writer/` → 后端服务），前端只需**在现有 server 块里加静态资源两段**，参考 [deploy/nginx.conf.example](deploy/nginx.conf.example)：
+线上 nginx 已就绪：`/ai-writer/` 反代后端 API（剥前缀），根路径 `/` 是现有站点。admin-web 挂在**子路径 `/admin/`** 下，在现有 server 块里加入以下三段（完整说明见 [deploy/nginx.conf.example](deploy/nginx.conf.example)）：
 
 ```nginx
-# 1) 静态根目录：npm run build 产出的 dist/
-root /var/www/admin-web/dist;
+location /admin/ {
+    root /var/www/agelong.xyz;
+    index index.html;
+    try_files $uri $uri/ /admin/index.html;
+}
 
-# 2) SPA 路由回落（/model、/users 由 react-router 接管）
-location / {
-    try_files $uri $uri/ /index.html;
+location /admin/assets/ {
+    root /var/www/agelong.xyz;
+    expires 30d;
+    add_header Cache-Control "public, immutable";
+}
+
+location = /admin {
+    return 301 /admin/;
 }
 ```
 
-`/ai-writer/` 的反代保持现状不动。前端与接口同源，无需任何 CORS 配置。发布流程：本地或 CI 执行 `npm run build`，把 `dist/` 同步到服务器的静态目录即可。
+发布流程（服务器上）：
+
+```bash
+cd /home/ecs-user/code/admin-web && npm run build
+sudo mkdir -p /var/www/agelong.xyz/admin
+sudo rsync -av --delete dist/ /var/www/agelong.xyz/admin/
+sudo nginx -t && sudo nginx -s reload
+```
+
+部署后访问 `https://agelong.xyz/admin/`。前端请求固定走 `/ai-writer/api/v1/...`，不会落入现有 `/api/v1/`（8000 端口服务）的 location。不建议 alias 到 `/home/ecs-user` 下的 dist——家目录权限通常不允许 nginx worker 穿越读取。
 
 ## 目录结构
 

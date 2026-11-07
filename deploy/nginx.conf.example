@@ -1,67 +1,58 @@
 # admin-web 部署参考（nginx）
 #
-# 线上现状：nginx 已部署并配置了 /ai-writer/ 反向代理 ai-writer 后端 API
-#（小程序与看板共用的接口前缀）。前端只需要在【现有 server 块】里补两段静态配置。
+# 线上现状（agelong.xyz 的 server 块）：
+#   /api/v1/     -> 127.0.0.1:8000   （其他服务的 API，不动）
+#   /            -> /var/www/agelong.xyz （现有站点，不动）
+#   /dashboard/  -> 旧版 dashboard 静态页（不动；如需下线自行处理）
+#   /ai-writer/  -> 127.0.0.1:8081/  （ai-writer 后端 API，剥前缀，不动）
+#
+# admin-web 挂在子路径 /admin/ 下（根路径被现有站点占用）。
+# 前端 .env.production：VITE_API_BASE_URL=/ai-writer，VITE_BASE=/admin/
 
 
-# ── 一、并入现有 server（必做，就这两段）──────────────────────
+# ── 在现有 server 块里加入以下三段 ─────────────────────────────
 #
-#    在已有的 443 server 块里加：
-#
-#    # 静态根目录：admin-web npm run build 产出的 dist/
-#    root /var/www/admin-web/dist;
-#
-#    # SPA 路由回落：/model、/users 等路径由 react-router 接管
-#    location / {
-#        try_files $uri $uri/ /index.html;
+#    # admin-web 管理后台（React SPA）
+#    location /admin/ {
+#        root /var/www/agelong.xyz;
+#        index index.html;
+#        try_files $uri $uri/ /admin/index.html;
 #    }
 #
-#    注意：若现有配置里已有 location /，把 try_files 合并进去即可；
-#    /ai-writer/ 的反代保持原样，不要动。
+#    # 带 hash 的静态资源，可放心长缓存（root 必须在这里重复声明，
+#    # nginx 的 root 只从 server 层继承，不会从兄弟 location 继承）
+#    location /admin/assets/ {
+#        root /var/www/agelong.xyz;
+#        expires 30d;
+#        add_header Cache-Control "public, immutable";
+#    }
+#
+#    # 无尾斜杠访问重定向（location /admin/ 匹配不到裸的 /admin）
+#    location = /admin {
+#        return 301 /admin/;
+#    }
+#
+#    修改后：sudo nginx -t && sudo nginx -s reload
 
 
-# ── 二、完整 server 参考（仅新建站点时使用）────────────────────
+# ── 发布命令（服务器上）────────────────────────────────────────
 #
-# server {
-#     listen 443 ssl;
-#     server_name agelong.xyz;
+#    cd /home/ecs-user/code/admin-web && npm run build
+#    sudo mkdir -p /var/www/agelong.xyz/admin
+#    sudo rsync -av --delete dist/ /var/www/agelong.xyz/admin/
 #
-#     # 证书按实际情况配置
-#     # ssl_certificate     /etc/nginx/certs/agelong.xyz.pem;
-#     # ssl_certificate_key /etc/nginx/certs/agelong.xyz.key;
+#    # 说明：不建议直接 alias 到 /home/ecs-user 下的 dist ——
+#    # 家目录常为 700/750，nginx worker（www-data）无法穿越，会 403。
+#    # 放进现有站点根目录 /var/www/agelong.xyz/admin/ 权限无忧，
+#    # 与现有 /dashboard/ 的布局方式一致。
+
+
+# ── 请求链路（配置完成后）───────────────────────────────────────
 #
-#     # 看板前端静态文件（admin-web 的 npm run build 产物）
-#     root /var/www/admin-web/dist;
-#     index index.html;
+#    页面      https://agelong.xyz/admin/          -> /var/www/agelong.xyz/admin/index.html
+#    页面      https://agelong.xyz/admin/users     -> try_files 回落到 /admin/index.html，react-router 接管
+#    资源      https://agelong.xyz/admin/assets/*  -> 长缓存
+#    接口      https://agelong.xyz/ai-writer/api/v1/* -> 8081（剥 /ai-writer 前缀）
 #
-#     # gzip 压缩（前端产物为 js/css/html）
-#     gzip on;
-#     gzip_types text/css application/javascript application/json image/svg+xml;
-#
-#     # SPA 路由回落
-#     location / {
-#         try_files $uri $uri/ /index.html;
-#     }
-#
-#     # 静态资源带内容 hash，可长缓存
-#     location /assets/ {
-#         expires 30d;
-#         add_header Cache-Control "public, immutable";
-#     }
-#
-#     # 后端 API（线上已配置，此处仅作参考）：
-#     # /ai-writer/xyz -> http://127.0.0.1:8080/xyz（末尾斜杠剥掉前缀）
-#     location /ai-writer/ {
-#         proxy_pass http://127.0.0.1:8080/;
-#         proxy_set_header Host $host;
-#         proxy_set_header X-Real-IP $remote_addr;
-#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#         proxy_set_header X-Forwarded-Proto $scheme;
-#     }
-# }
-#
-# server {
-#     listen 80;
-#     server_name agelong.xyz;
-#     return 301 https://$host$request_uri;
-# }
+#    /api/v1/（8000 端口的其他服务）与本前端无关：
+#    前端请求固定带 /ai-writer 前缀，不会落入该 location。
