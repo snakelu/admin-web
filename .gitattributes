@@ -1,0 +1,13 @@
+# 仓库内统一 LF，避免 Windows 上 CRLF 反复改写。
+* text=auto eol=lf
+
+# Windows 脚本保持 CRLF（当前没有；如未来添加 .bat/.cmd 在此登记）
+# *.bat text eol=crlf
+# *.cmd text eol=crlf
+
+# 二进制文件不做换行转换
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
