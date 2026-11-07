@@ -1,11 +1,12 @@
-import { useCallback } from "react";
-import { NavLink, Outlet, useOutletContext } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { NavLink, Outlet, useNavigate, useOutletContext } from "react-router-dom";
 import { statsUrl } from "./api/client";
 import { fetchModelStats, fetchUserStats, MODEL_STATS_PATH, USER_STATS_PATH } from "./api/stats";
 import type { ModelStatsSnapshot, UserStatsSnapshot } from "./api/types";
 import { useStatsData } from "./hooks/useStatsData";
 import type { StatsData, StatsProblem } from "./hooks/useStatsData";
 import { Empty } from "./components/Empty";
+import { clearSession, getUsername, onUnauthorized } from "./lib/auth";
 
 const REFRESH_MS = 15000;
 
@@ -26,6 +27,8 @@ function problemState(problem: StatsProblem): string {
       return "连接失败";
     case "http":
       return "服务异常";
+    case "unauthorized":
+      return "登录已过期";
   }
 }
 
@@ -37,20 +40,37 @@ function problemMessage(problem: StatsProblem): string {
       return "连接不上统计服务，请确认后端已启动。";
     case "http":
       return `无法读取统计数据（HTTP ${problem.status ?? "?"}），请稍后重试。`;
+    case "unauthorized":
+      return "登录已过期，请重新登录。";
   }
 }
 
-/** 全局布局：页头（实时状态/刷新）+ Tab 导航 + 当前页面 + 页脚。两个统计接口都在这里轮询。 */
+/** 全局布局：页头（实时状态/刷新/退出）+ Tab 导航 + 当前页面 + 页脚。两个统计接口都在这里轮询。 */
 export default function App() {
+  const navigate = useNavigate();
   const model = useStatsData(fetchModelStats, REFRESH_MS);
   const user = useStatsData(fetchUserStats, REFRESH_MS);
+  // 登录名只决定顶栏显示；登录态本身以 token 为准，401 时由下方订阅统一处理。
+  const [username, setUsername] = useState(getUsername);
+
+  // 任一接口返回 401：fetch 封装已清掉本地登录态，这里跳去登录页。
+  useEffect(() => onUnauthorized(() => navigate("/login", { replace: true })), [navigate]);
 
   const refresh = useCallback(() => {
     model.refresh();
     user.refresh();
   }, [model.refresh, user.refresh]);
 
-  const problem = model.problem ?? user.problem;
+  const logout = useCallback(() => {
+    clearSession();
+    setUsername(null);
+    navigate("/login", { replace: true });
+  }, [navigate]);
+
+  // 登录态失效交给跳转处理，不作为面板错误展示。
+  const visibleProblem = [model.problem, user.problem].find(
+    (problem) => problem && problem.kind !== "unauthorized",
+  );
   const stamp = [model.data?.generated_at, user.data?.generated_at]
     .filter((value): value is string => Boolean(value))
     .sort()
@@ -71,18 +91,27 @@ export default function App() {
           </div>
         </div>
         <div className="topbar-tail">
-          <span className={"live" + (problem ? " is-down" : "")}>
+          <span className={"live" + (visibleProblem ? " is-down" : "")}>
             <span className="live-dot" aria-hidden="true" />
-            <span>{problem ? problemState(problem) : "实时"}</span>
+            <span>{visibleProblem ? problemState(visibleProblem) : "实时"}</span>
           </span>
           <span className="stamp">{stamp ? "更新于 " + stamp.replace("T", " ") : "—"}</span>
-          <button className="refresh" type="button" onClick={refresh} disabled={model.loading || user.loading}>
+          {username ? <span className="stamp">{username}</span> : null}
+          <button
+            className="refresh"
+            type="button"
+            onClick={refresh}
+            disabled={model.loading || user.loading}
+          >
             刷新
+          </button>
+          <button className="refresh ghost" type="button" onClick={logout}>
+            退出
           </button>
         </div>
       </header>
 
-      {problem ? <p className="notice">{problemMessage(problem)}</p> : null}
+      {visibleProblem ? <p className="notice">{problemMessage(visibleProblem)}</p> : null}
 
       <nav className="tabs" aria-label="统计分类">
         <NavLink to="/model" className={tabClass}>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { StatsResult } from "../api/client";
 
 export type StatsProblem = {
-  kind: "limited" | "http" | "network";
+  kind: "limited" | "unauthorized" | "http" | "network";
   status?: number;
 };
 

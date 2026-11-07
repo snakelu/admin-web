@@ -6,6 +6,14 @@
 
 - `/model` 模型用量：总请求、成功率、Tokens、备用切换、按模型/按天明细
 - `/users` 用户行为：注册、作业、导学/点评、活跃用户、完成情况
+- `/login` 管理员登录：统计接口已开启管理员鉴权，未登录访问任何页面会跳转到登录页
+
+## 登录
+
+- 凭证提交到后端 `POST {VITE_API_BASE_URL}/api/v1/auth/admin/login`，换取签名 token（默认 12 小时有效）后存入 localStorage
+- 之后所有统计请求自动携带 `Authorization: Bearer <token>`；收到 401（过期/被更换）时清除本地登录态并跳回登录页
+- 顶栏右侧显示当前用户名与"退出"按钮
+- 初始账号由后端首次启动时创建（默认 snakelu / snakelu123@），详见 ai-writer README 的"管理员账号与看板鉴权"
 
 技术栈：Vite + React 19 + TypeScript + react-router。无 UI/图表库，图表为手写 SVG 组件，设计语言沿用小程序"纸白 + 墨灰 + 暖橙 + 草绿"，深色模式跟随系统。
 

@@ -206,6 +206,81 @@ code {
 .refresh:active { transform: translateY(0); }
 .refresh[disabled] { opacity: .55; cursor: default; transform: none; box-shadow: none; }
 
+.refresh.ghost {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--secondary);
+}
+
+.refresh.ghost:hover { color: var(--danger); border-color: var(--danger-line); }
+
+/* ── 登录页 ─────────────────────────────────────────── */
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px 30px 28px;
+}
+
+.login-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
+.login-title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.login-error { margin: 0; }
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--secondary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.login-field input {
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--card-sunk);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  transition: border-color .18s ease;
+}
+
+.login-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--card);
+}
+
+.login-submit {
+  margin-top: 4px;
+  padding: 11px 18px;
+  font-size: 14px;
+}
+
 .notice {
   margin: 0;
   padding: 11px 16px;
