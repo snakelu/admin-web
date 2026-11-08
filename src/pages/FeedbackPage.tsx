@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { fetchFeedback, handleFeedback, ADMIN_FEEDBACK_PATH } from "../api/feedback";
+import type { FeedbackQuery } from "../api/feedback";
 import { statsUrl } from "../api/client";
 import type { FeedbackCategory, FeedbackItem, FeedbackStatus } from "../api/types";
 import { Empty } from "../components/Empty";
@@ -7,7 +8,9 @@ import { KpiCards } from "../components/KpiCards";
 import { getToken } from "../lib/auth";
 import { stampLabel } from "../lib/format";
 
-/** 反馈管理页：家长提交的问题反馈列表，可展开查看上下文与截图，并更新处理状态和回复。 */
+/** 反馈管理页：分页查看家长反馈，支持关键词/用户/类别/状态过滤，可展开处理并回复。 */
+
+const PAGE_SIZE = 20;
 
 const CATEGORY_LABELS: Record<FeedbackCategory, string> = {
   generation: "生成问题",
@@ -36,6 +39,23 @@ const FILTERS: { value: FeedbackStatus | "all"; label: string }[] = [
   { value: "resolved", label: "已解决" },
 ];
 
+type Query = {
+  status: FeedbackStatus | "all";
+  category: FeedbackCategory | "all";
+  userId: number | null;
+  keyword: string;
+  page: number;
+};
+
+const INITIAL_QUERY: Query = { status: "all", category: "all", userId: null, keyword: "", page: 1 };
+
+function problemMessage(kind: string, status?: number): string {
+  if (kind === "limited") return "请求过于频繁，已保留上一次的数据。";
+  if (kind === "network") return "连接不上统计服务，请确认后端已启动。";
+  if (kind === "unauthorized") return "登录已过期，请重新登录。";
+  return `无法读取反馈列表（HTTP ${status ?? "?"}），请稍后重试。`;
+}
+
 function statusPill(status: FeedbackStatus) {
   return `pill ${STATUS_PILLS[status]}`;
 }
@@ -51,9 +71,10 @@ function FeedbackShot({ feedbackId, assetId }: { feedbackId: string; assetId: st
     void (async () => {
       try {
         const token = getToken();
-        const response = await fetch(statsUrl(`${ADMIN_FEEDBACK_PATH}/${feedbackId}/images/${assetId}`), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
+        const response = await fetch(
+          statsUrl(`${ADMIN_FEEDBACK_PATH}/${feedbackId}/images/${assetId}`),
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        );
         if (!response.ok) {
           if (alive) setFailed(true);
           return;
@@ -82,10 +103,17 @@ function FeedbackShot({ feedbackId, assetId }: { feedbackId: string; assetId: st
 }
 
 export function FeedbackPage() {
+  const [query, setQuery] = useState<Query>(INITIAL_QUERY);
+  const [reload, setReload] = useState(0);
   const [items, setItems] = useState<FeedbackItem[] | null>(null);
+  const [total, setTotal] = useState(0);
+  const [pendingTotal, setPendingTotal] = useState(0);
   const [problem, setProblem] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState<FeedbackStatus | "all">("all");
+
+  // 文本类过滤输入只在点击“查询”时生效，避免每敲一个字就请求一次。
+  const [keywordDraft, setKeywordDraft] = useState("");
+  const [userIdDraft, setUserIdDraft] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ status: FeedbackStatus; reply: string }>({
     status: "pending",
@@ -94,29 +122,54 @@ export function FeedbackPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const result = await fetchFeedback();
-    if (result.ok) {
-      setItems(result.data);
-      setProblem(null);
-    } else {
-      setProblem(
-        result.kind === "limited"
-          ? "请求过于频繁，已保留上一次的数据。"
-          : result.kind === "network"
-            ? "连接不上统计服务，请确认后端已启动。"
-            : result.kind === "unauthorized"
-              ? "登录已过期，请重新登录。"
-              : `无法读取反馈列表（HTTP ${result.status ?? "?"}），请稍后重试。`,
-      );
-    }
-    setLoading(false);
-  }, []);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    let alive = true;
+    void (async () => {
+      setLoading(true);
+      const params: FeedbackQuery = { page: query.page, pageSize: PAGE_SIZE };
+      if (query.status !== "all") params.status = query.status;
+      if (query.category !== "all") params.category = query.category;
+      if (query.userId !== null) params.userId = query.userId;
+      if (query.keyword) params.keyword = query.keyword;
+      const result = await fetchFeedback(params);
+      if (!alive) return; // 查询条件已变化，丢弃过期响应
+      if (result.ok) {
+        setItems(result.data.items);
+        setTotal(result.data.total);
+        setProblem(null);
+      } else {
+        setProblem(problemMessage(result.kind, result.status));
+      }
+      setLoading(false);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [query, reload]);
+
+  // 待处理总数需要跨全量统计，单独发一个只取 total 的轻量请求。
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const result = await fetchFeedback({ status: "pending", page: 1, pageSize: 1 });
+      if (alive && result.ok) setPendingTotal(result.data.total);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [query, reload]);
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const applySearch = () => {
+    const parsed = Number(userIdDraft.trim());
+    setQuery((current) => ({
+      ...current,
+      userId: userIdDraft.trim() && Number.isFinite(parsed) ? parsed : null,
+      keyword: keywordDraft.trim(),
+      page: 1,
+    }));
+  };
 
   const toggle = (item: FeedbackItem) => {
     if (expandedId === item.id) {
@@ -139,19 +192,13 @@ export function FeedbackPage() {
     setSaving(false);
     if (!result.ok) {
       setSaveError(
-        result.kind === "limited"
-          ? "请求过于频繁，请稍后再试。"
-          : "保存失败，请稍后重试。",
+        result.kind === "limited" ? "请求过于频繁，请稍后再试。" : "保存失败，请稍后重试。",
       );
       return;
     }
     setExpandedId(null);
-    await load();
+    setReload((mark) => mark + 1);
   };
-
-  const list = items ?? [];
-  const filtered = filter === "all" ? list : list.filter((item) => item.status === filter);
-  const pendingCount = list.filter((item) => item.status === "pending").length;
 
   if (items === null && problem === null) {
     return (
@@ -168,8 +215,8 @@ export function FeedbackPage() {
         cards={[
           {
             label: "待处理反馈",
-            value: String(pendingCount),
-            foot: `共 ${list.length} 条反馈记录`,
+            value: String(pendingTotal),
+            foot: `当前筛选共 ${total} 条记录`,
           },
         ]}
       />
@@ -181,22 +228,70 @@ export function FeedbackPage() {
               <h2 className="card-title">用户反馈</h2>
               <p className="card-caption">家长的生成问题、内容质量与建议，附练习上下文</p>
             </div>
+          </header>
+
+          <div className="filter-bar">
             <div className="filter-tabs">
               {FILTERS.map((tab) => (
                 <button
                   key={tab.value}
                   type="button"
-                  className={"filter-tab" + (filter === tab.value ? " is-active" : "")}
-                  onClick={() => setFilter(tab.value)}
+                  className={"filter-tab" + (query.status === tab.value ? " is-active" : "")}
+                  onClick={() => setQuery({ ...query, status: tab.value, page: 1 })}
                 >
                   {tab.label}
                 </button>
               ))}
-              <button className="refresh" type="button" onClick={() => void load()} disabled={loading}>
-                刷新
-              </button>
             </div>
-          </header>
+            <input
+              className="filter-input"
+              placeholder="搜索问题描述…"
+              value={keywordDraft}
+              onChange={(event) => setKeywordDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") applySearch();
+              }}
+            />
+            <input
+              className="filter-userid"
+              placeholder="家长 ID"
+              type="number"
+              min={1}
+              value={userIdDraft}
+              onChange={(event) => setUserIdDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") applySearch();
+              }}
+            />
+            <select
+              value={query.category}
+              onChange={(event) =>
+                setQuery({
+                  ...query,
+                  category: event.target.value as FeedbackCategory | "all",
+                  page: 1,
+                })
+              }
+            >
+              <option value="all">全部类别</option>
+              {(Object.keys(CATEGORY_LABELS) as FeedbackCategory[]).map((category) => (
+                <option key={category} value={category}>
+                  {CATEGORY_LABELS[category]}
+                </option>
+              ))}
+            </select>
+            <button className="refresh" type="button" onClick={applySearch}>
+              查询
+            </button>
+            <button
+              className="refresh ghost"
+              type="button"
+              onClick={() => setReload((mark) => mark + 1)}
+              disabled={loading}
+            >
+              刷新
+            </button>
+          </div>
 
           {problem ? <p className="notice">{problem}</p> : null}
 
@@ -213,7 +308,7 @@ export function FeedbackPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item) => (
+                {(items ?? []).map((item) => (
                   <FeedbackRow
                     key={item.id}
                     item={item}
@@ -226,15 +321,37 @@ export function FeedbackPage() {
                     onSave={() => void save(item)}
                   />
                 ))}
-                {!filtered.length && (
+                {items !== null && !items.length && (
                   <tr>
                     <td className="text-muted" colSpan={6}>
-                      {items === null ? "正在读取反馈…" : "暂无该状态的反馈"}
+                      没有符合条件的反馈
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+
+          <div className="pager">
+            <span>
+              {loading ? "加载中…" : `第 ${query.page} / ${pageCount} 页 · 共 ${total} 条`}
+            </span>
+            <button
+              className="refresh"
+              type="button"
+              disabled={query.page <= 1 || loading}
+              onClick={() => setQuery({ ...query, page: query.page - 1 })}
+            >
+              上一页
+            </button>
+            <button
+              className="refresh"
+              type="button"
+              disabled={query.page >= pageCount || loading}
+              onClick={() => setQuery({ ...query, page: query.page + 1 })}
+            >
+              下一页
+            </button>
           </div>
         </article>
       </section>
@@ -269,7 +386,10 @@ function FeedbackRow({
       <tr className={expanded ? "feedback-row-open" : undefined}>
         <td className="lead">{stampLabel(item.created_at)}</td>
         <td>{CATEGORY_LABELS[item.category] ?? item.category}</td>
-        <td>{who || "—"}</td>
+        <td>
+          {who || "—"}
+          {item.user ? <span className="feedback-uid"> #{item.user.id}</span> : null}
+        </td>
         <td className="feedback-content">{item.content}</td>
         <td>
           <span className={statusPill(item.status)}>{STATUS_LABELS[item.status]}</span>

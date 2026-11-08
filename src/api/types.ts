@@ -103,3 +103,11 @@ export interface FeedbackItem {
   student: { name: string; grade: string } | null;
   assignment: { id: string; kind: string; title: string } | null;
 }
+
+/** GET /admin/feedback 的分页返回。 */
+export interface FeedbackPageData {
+  items: FeedbackItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
