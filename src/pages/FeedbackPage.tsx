@@ -221,9 +221,8 @@ export function FeedbackPage() {
         ]}
       />
 
-      <section className="split">
-        <article className="card feedback-card">
-          <header className="card-head">
+      <article className="card feedback-card">
+        <header className="card-head">
             <div>
               <h2 className="card-title">用户反馈</h2>
               <p className="card-caption">家长的生成问题、内容质量与建议，附练习上下文</p>
@@ -353,8 +352,7 @@ export function FeedbackPage() {
               下一页
             </button>
           </div>
-        </article>
-      </section>
+      </article>
     </>
   );
 }
