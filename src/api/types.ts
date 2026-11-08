@@ -83,7 +83,7 @@ export interface UserStatsSnapshot {
 
 /** 接口返回的用户反馈（GET {API_BASE}/api/v1/admin/feedback）。 */
 
-export type FeedbackStatus = "pending" | "in_progress" | "resolved";
+export type FeedbackStatus = "pending" | "in_progress" | "resolved" | "closed";
 
 export type FeedbackCategory = "generation" | "content" | "photo" | "suggest" | "other";
 

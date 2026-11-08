@@ -473,6 +473,7 @@ code {
 .pill-warn { background: var(--danger-soft); color: var(--danger); }
 .pill-sage { background: var(--sage-soft); color: var(--sage-deep); }
 .pill-accent { background: var(--accent-soft); color: var(--accent-ink); }
+.pill-muted { background: var(--card-sunk); color: var(--muted); }
 
 /* ── 图表 ───────────────────────────────────────────── */
 
@@ -858,6 +859,9 @@ code {
 .feedback-save { align-self: flex-start; }
 
 .feedback-uid { color: var(--muted); font-size: 11px; }
+
+.feedback-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.feedback-actions-label { color: var(--muted); font-size: 12px; }
 
 .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
 .filter-bar input,

@@ -24,12 +24,14 @@ const STATUS_LABELS: Record<FeedbackStatus, string> = {
   pending: "待处理",
   in_progress: "处理中",
   resolved: "已解决",
+  closed: "已关闭",
 };
 
 const STATUS_PILLS: Record<FeedbackStatus, string> = {
   pending: "pill-warn",
   in_progress: "pill-accent",
   resolved: "pill-sage",
+  closed: "pill-muted",
 };
 
 const FILTERS: { value: FeedbackStatus | "all"; label: string }[] = [
@@ -37,7 +39,23 @@ const FILTERS: { value: FeedbackStatus | "all"; label: string }[] = [
   { value: "pending", label: "待处理" },
   { value: "in_progress", label: "处理中" },
   { value: "resolved", label: "已解决" },
+  { value: "closed", label: "已关闭" },
 ];
+
+/** 快捷流转按钮：按当前状态给出下一步，点击即按当前回复草稿保存。 */
+const QUICK_ACTIONS: Record<FeedbackStatus, { label: string; target: FeedbackStatus }[]> = {
+  pending: [
+    { label: "开始处理", target: "in_progress" },
+    { label: "标记完成", target: "resolved" },
+    { label: "关闭", target: "closed" },
+  ],
+  in_progress: [
+    { label: "标记完成", target: "resolved" },
+    { label: "关闭", target: "closed" },
+  ],
+  resolved: [{ label: "重新打开", target: "in_progress" }],
+  closed: [{ label: "重新打开", target: "in_progress" }],
+};
 
 type Query = {
   status: FeedbackStatus | "all";
@@ -181,12 +199,12 @@ export function FeedbackPage() {
     setSaveError(null);
   };
 
-  const save = async (item: FeedbackItem) => {
+  const save = async (item: FeedbackItem, overrideStatus?: FeedbackStatus) => {
     if (saving) return;
     setSaving(true);
     setSaveError(null);
     const result = await handleFeedback(item.id, {
-      status: draft.status,
+      status: overrideStatus ?? draft.status,
       reply: draft.reply.trim() || null,
     });
     setSaving(false);
@@ -318,6 +336,7 @@ export function FeedbackPage() {
                     saveError={saveError}
                     onToggle={() => toggle(item)}
                     onSave={() => void save(item)}
+                    onQuick={(target) => void save(item, target)}
                   />
                 ))}
                 {items !== null && !items.length && (
@@ -366,6 +385,7 @@ function FeedbackRow({
   saveError,
   onToggle,
   onSave,
+  onQuick,
 }: {
   item: FeedbackItem;
   expanded: boolean;
@@ -375,6 +395,7 @@ function FeedbackRow({
   saveError: string | null;
   onToggle: () => void;
   onSave: () => void;
+  onQuick: (target: FeedbackStatus) => void;
 }) {
   const who = [item.user?.nickname, item.student ? `${item.student.name}（${item.student.grade}）` : null]
     .filter(Boolean)
@@ -448,6 +469,20 @@ function FeedbackRow({
                   ))}
                 </div>
               )}
+              <div className="feedback-actions">
+                <span className="feedback-actions-label">快捷操作：</span>
+                {(QUICK_ACTIONS[item.status] ?? []).map((action) => (
+                  <button
+                    key={action.target}
+                    className="refresh"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => onQuick(action.target)}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
               <div className="feedback-form">
                 <label>
                   状态
