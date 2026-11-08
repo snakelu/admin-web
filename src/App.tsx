@@ -120,6 +120,9 @@ export default function App() {
         <NavLink to="/users" className={tabClass}>
           用户行为
         </NavLink>
+        <NavLink to="/feedback" className={tabClass}>
+          用户反馈
+        </NavLink>
       </nav>
 
       {model.data || user.data ? (

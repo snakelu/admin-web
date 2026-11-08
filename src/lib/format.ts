@@ -28,3 +28,8 @@ export function percent(succeeded: number | null | undefined, requests: number |
 export function dayLabel(date: string | undefined): string {
   return date ? date.slice(5) : "";
 }
+
+/** ISO 时间转 "YYYY-MM-DD HH:mm" 的展示文案，空值显示 —。 */
+export function stampLabel(iso: string | null | undefined): string {
+  return iso ? iso.replace("T", " ").slice(0, 16) : "—";
+}

@@ -5,6 +5,7 @@ import App, { useAppData } from "./App";
 import { LoginPage } from "./pages/LoginPage";
 import { ModelPage } from "./pages/ModelPage";
 import { UserPage } from "./pages/UserPage";
+import { FeedbackPage } from "./pages/FeedbackPage";
 import { getToken } from "./lib/auth";
 import "./styles/dashboard.css";
 
@@ -46,6 +47,7 @@ createRoot(document.getElementById("root")!).render(
           <Route index element={<Navigate to="/model" replace />} />
           <Route path="/model" element={<ModelRoute />} />
           <Route path="/users" element={<UserRoute />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="*" element={<Navigate to="/model" replace />} />
         </Route>
       </Routes>

@@ -19,22 +19,45 @@ export async function fetchStats<T>(path: string): Promise<StatsResult<T>> {
   }
   try {
     const response = await fetch(statsUrl(path), { headers });
-    if (response.status === 429) {
-      return { ok: false, kind: "limited" };
-    }
-    if (response.status === 401) {
-      // 登录态失效：清掉本地 token 并广播，布局会跳转登录页。
-      clearSession();
-      notifyUnauthorized();
-      return { ok: false, kind: "unauthorized" };
-    }
-    if (!response.ok) {
-      return { ok: false, kind: "http", status: response.status };
-    }
-    return { ok: true, data: (await response.json()) as T };
+    return readStatsResponse<T>(response);
   } catch {
     return { ok: false, kind: "network" };
   }
+}
+
+/** POST JSON 的统计/管理接口封装，错误处理与 fetchStats 完全一致。 */
+export async function postStats<T>(path: string, body: unknown): Promise<StatsResult<T>> {
+  const headers: Record<string, string> = { Accept: "application/json", "Content-Type": "application/json" };
+  const token = getToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  try {
+    const response = await fetch(statsUrl(path), {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    return readStatsResponse<T>(response);
+  } catch {
+    return { ok: false, kind: "network" };
+  }
+}
+
+async function readStatsResponse<T>(response: Response): Promise<StatsResult<T>> {
+  if (response.status === 429) {
+    return { ok: false, kind: "limited" };
+  }
+  if (response.status === 401) {
+    // 登录态失效：清掉本地 token 并广播，布局会跳转登录页。
+    clearSession();
+    notifyUnauthorized();
+    return { ok: false, kind: "unauthorized" };
+  }
+  if (!response.ok) {
+    return { ok: false, kind: "http", status: response.status };
+  }
+  return { ok: true, data: (await response.json()) as T };
 }
 
 export type LoginResult =

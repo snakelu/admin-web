@@ -80,3 +80,26 @@ export interface UserStatsSnapshot {
   active_users: { today: number; last7days: number };
   days: UserDay[];
 }
+
+/** 接口返回的用户反馈（GET {API_BASE}/api/v1/admin/feedback）。 */
+
+export type FeedbackStatus = "pending" | "in_progress" | "resolved";
+
+export type FeedbackCategory = "generation" | "content" | "photo" | "suggest" | "other";
+
+export interface FeedbackItem {
+  id: string;
+  category: FeedbackCategory;
+  content: string;
+  contact: string | null;
+  status: FeedbackStatus;
+  reply: string | null;
+  created_at: string;
+  handled_at: string | null;
+  handled_by: string | null;
+  client_env: Record<string, string> | null;
+  images: string[];
+  user: { id: number; nickname: string } | null;
+  student: { name: string; grade: string } | null;
+  assignment: { id: string; kind: string; title: string } | null;
+}
